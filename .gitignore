@@ -1,0 +1,48 @@
+# ==============================
+# LumaWear + ChurnIQ Root Ignore
+# ==============================
+
+# Node
+**/node_modules/
+**/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment / secrets
+**/.env
+**/.env.*
+!.env.example
+
+# Python
+**/venv/
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backups
+LumaWear-Ecommerce_backup/
+ChurnProject_backup/
+
+# LumaWear generated/local data
+LumaWear-Ecommerce/backend/data/
+!LumaWear-Ecommerce/backend/data/.gitkeep
+
+# ChurnIQ large generated model artifacts
+ChurnProject/artifacts/**/*.joblib
+
+# Temporary/test-generated data
+ChurnProject/data/test_telecom.csv
+
+# Local IDE
+.vscode/
+.idea/
+
+ChurnProject/data/test_ecomm2.csv
+
+LumaWear-Ecommerce/backend/*-backup-*.json

@@ -1,0 +1,40 @@
+{
+  "dataset_name": "test_ecomm2.csv",
+  "dataset_hash": "862d0aa47e36",
+  "n_rows": 800,
+  "n_cols": 10,
+  "target_col": "is_churned",
+  "id_cols": [
+    "cust_ref"
+  ],
+  "numeric_cols": [
+    "account_age_days",
+    "avg_order_value",
+    "total_orders",
+    "wishlist_items",
+    "returns_count"
+  ],
+  "categorical_cols": [
+    "device_type",
+    "subscription",
+    "region"
+  ],
+  "datetime_cols": [],
+  "text_cols": [],
+  "drop_cols": [
+    "cust_ref"
+  ],
+  "feature_cols": [
+    "account_age_days",
+    "avg_order_value",
+    "total_orders",
+    "wishlist_items",
+    "returns_count",
+    "device_type",
+    "subscription",
+    "region"
+  ],
+  "churn_rate": 22.25,
+  "class_balance": "imbalanced",
+  "warnings": []
+}

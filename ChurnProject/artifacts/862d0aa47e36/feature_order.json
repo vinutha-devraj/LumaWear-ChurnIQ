@@ -1,0 +1,16 @@
+[
+  "account_age_days",
+  "avg_order_value",
+  "total_orders",
+  "wishlist_items",
+  "returns_count",
+  "device_type_Desktop",
+  "device_type_Mobile",
+  "device_type_Tablet",
+  "subscription_Free",
+  "subscription_Premium",
+  "region_East",
+  "region_North",
+  "region_South",
+  "region_West"
+]

@@ -1,0 +1,69 @@
+{
+  "dataset_name": "LumaWear E-Commerce",
+  "dataset_hash": "2b2147fd4057",
+  "n_rows": 7912,
+  "n_cols": 24,
+  "target_col": "churn",
+  "id_cols": [
+    "user_id"
+  ],
+  "numeric_cols": [
+    "tenure_days",
+    "days_since_last_login",
+    "days_since_last_activity",
+    "login_count_30d",
+    "active_days_30d",
+    "page_views_30d",
+    "product_views_30d",
+    "cart_actions_30d",
+    "wishlist_actions_30d",
+    "order_count",
+    "orders_30d",
+    "days_since_last_order",
+    "total_spend",
+    "spend_30d",
+    "average_order_value",
+    "order_frequency",
+    "distinct_products_viewed_30d",
+    "distinct_categories_ordered",
+    "items_per_order",
+    "activity_event_count_30d"
+  ],
+  "categorical_cols": [
+    "preferred_order_category"
+  ],
+  "datetime_cols": [
+    "as_of_date"
+  ],
+  "text_cols": [],
+  "drop_cols": [
+    "as_of_date",
+    "user_id"
+  ],
+  "feature_cols": [
+    "tenure_days",
+    "days_since_last_login",
+    "days_since_last_activity",
+    "login_count_30d",
+    "active_days_30d",
+    "page_views_30d",
+    "product_views_30d",
+    "cart_actions_30d",
+    "wishlist_actions_30d",
+    "order_count",
+    "orders_30d",
+    "days_since_last_order",
+    "total_spend",
+    "spend_30d",
+    "average_order_value",
+    "order_frequency",
+    "distinct_products_viewed_30d",
+    "distinct_categories_ordered",
+    "items_per_order",
+    "activity_event_count_30d",
+    "preferred_order_category"
+  ],
+  "churn_rate": 30.62,
+  "class_balance": "balanced",
+  "warnings": []
+}

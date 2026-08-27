@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ChurnIQ — Intelligent Churn Analytics</title>
+<style>
+/* ── Reset & base ─────────────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F7F9FB;--surface:#FFFFFF;--surface2:#EEF2F6;--border:#DCE3EA;
+  --text:#16202B;--muted:#5B6B7C;--accent:#1F6F5C;--accent2:#C9622A;
+  --green:#1B7A4C;--red:#C13F49;--amber:#B8860B;--blue:#2E6C9E;
+  --radius:20px;--radius-sm:14px;--shadow:0 1px 3px rgba(22,32,43,.07);
+  --shadow-lg:0 10px 28px rgba(22,32,43,.14);
+  --font:'Inter',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;font-variant-numeric:tabular-nums}
+
+/* ── Training overlay ─────────────────────────────────────────────────────── */
+#training-overlay{
+  display:none;position:fixed;inset:0;background:rgba(22,32,43,.6);
+  z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:24px;
+}
+#training-overlay.active{display:flex}
+.train-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:40px 48px;max-width:480px;width:90%;text-align:center;box-shadow:0 8px 24px rgba(22,32,43,.12);
+}
+.train-card h2{font-size:1.4rem;margin-bottom:8px;color:var(--text)}
+.train-card p{color:var(--muted);font-size:.9rem;margin-bottom:24px}
+.train-step{font-size:.85rem;color:var(--accent);font-family:var(--mono);margin-bottom:16px;min-height:1.2em}
+.progress-track{
+  background:var(--surface2);border-radius:99px;height:10px;overflow:hidden;margin-bottom:8px;
+}
+.progress-fill{
+  height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:width .4s ease;width:0%;
+}
+.progress-pct{font-size:.8rem;color:var(--muted);font-family:var(--mono)}
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+.app{display:grid;grid-template-rows:64px 1fr;min-height:100vh}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;border-bottom:1px solid var(--border);
+  background:var(--surface);position:sticky;top:0;z-index:100;
+  box-shadow:0 1px 2px rgba(22,32,43,.04);
+}
+.logo{font-size:1.25rem;font-weight:700;letter-spacing:-.02em}
+.logo span{color:var(--accent)}
+.header-right{display:flex;align-items:center;gap:14px}
+.model-badge{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:999px;padding:6px 16px;font-size:.75rem;color:var(--muted);
+  display:flex;align-items:center;gap:6px;
+}
+.model-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+#auc-badge{font-family:var(--mono);color:var(--green)}
+
+/* ── Upload area ──────────────────────────────────────────────────────────── */
+.upload-page{
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:32px;padding:48px 24px;
+}
+.upload-card{
+  background:var(--surface);border:2px dashed var(--border);border-radius:var(--radius);
+  padding:56px 48px;max-width:560px;width:100%;text-align:center;cursor:pointer;
+  transition:border-color .2s,background .2s;box-shadow:var(--shadow);
+}
+.upload-card:hover,.upload-card.dragover{border-color:var(--accent);background:rgba(31,111,92,.05)}
+.upload-icon{font-size:3rem;margin-bottom:16px}
+.upload-card h2{font-size:1.3rem;font-weight:600;margin-bottom:8px}
+.upload-card p{color:var(--muted);font-size:.9rem;line-height:1.6}
+.upload-card input{display:none}
+.upload-hint{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px 28px;max-width:560px;width:100%;box-shadow:var(--shadow);
+}
+.upload-hint h4{font-size:.85rem;font-weight:600;margin-bottom:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.upload-hint ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+.upload-hint li{font-size:.83rem;color:var(--muted);display:flex;align-items:center;gap:8px}
+.upload-hint li::before{content:"✓";color:var(--green);font-weight:700}
+
+/* ── Schema confirm ──────────────────────────────────────────────────────── */
+.schema-page{
+  display:none;align-items:center;justify-content:center;
+  flex-direction:column;gap:24px;padding:48px 24px;
+}
+.schema-page.active{display:flex}
+.schema-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:36px 40px;max-width:680px;width:100%;box-shadow:var(--shadow);
+}
+.schema-card h2{font-size:1.2rem;font-weight:600;margin-bottom:6px}
+.schema-card .subtitle{color:var(--muted);font-size:.88rem;margin-bottom:24px}
+.schema-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.schema-box{background:var(--surface2);border-radius:var(--radius-sm);padding:16px}
+.schema-box h4{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px}
+.schema-box .tag{
+  display:inline-block;background:rgba(31,111,92,.10);color:var(--accent);
+  border-radius:4px;padding:2px 8px;font-size:.75rem;font-family:var(--mono);
+  margin:2px;
+}
+.schema-box .tag.cat{background:rgba(201,98,42,.10);color:var(--accent2)}
+.schema-box .tag.target{background:rgba(31,138,91,.12);color:var(--green)}
+.schema-box .tag.drop{background:rgba(91,107,124,.10);color:var(--muted);text-decoration:line-through}
+.schema-warning{
+  background:rgba(184,134,11,.08);border:1px solid rgba(184,134,11,.28);
+  border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;
+  font-size:.83rem;color:var(--amber);
+}
+.schema-actions{display:flex;gap:12px;justify-content:flex-end}
+.btn{
+  padding:11px 26px;border-radius:999px;border:none;
+  font-size:.88rem;font-weight:600;cursor:pointer;transition:opacity .15s,transform .15s;
+}
+.btn:hover{opacity:.85}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(31,111,92,.25)}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+
+/* ── Dashboard ────────────────────────────────────────────────────────────── */
+.dashboard{display:none;flex-direction:row;height:calc(100vh - 64px);gap:16px;padding:16px;box-sizing:border-box}
+.dashboard.active{display:flex}
+
+/* ── Floating side nav ────────────────────────────────────────────────────── */
+.side-nav{
+  width:76px;flex-shrink:0;background:var(--text);border-radius:28px;
+  display:flex;flex-direction:column;align-items:center;padding:20px 0;
+  gap:8px;box-shadow:var(--shadow-lg);
+}
+.side-nav-icon{
+  width:44px;height:44px;border-radius:14px;border:none;background:rgba(255,255,255,.1);
+  color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:background .15s;margin-bottom:14px;flex-shrink:0;
+}
+.side-nav-icon:hover{background:rgba(255,255,255,.2)}
+.side-nav-tabs{display:flex;flex-direction:column;gap:10px;flex:1}
+.side-nav-btn{
+  width:44px;height:44px;border-radius:14px;border:none;background:transparent;
+  color:rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:background .15s,color .15s;padding:0;margin:0;
+}
+.side-nav-btn svg{width:20px;height:20px}
+.side-nav-btn:hover{color:#fff;background:rgba(255,255,255,.08)}
+.side-nav-btn.active{background:var(--accent);color:#fff}
+.side-nav-model{
+  width:13px;height:13px;border-radius:50%;background:var(--green);margin-top:8px;
+  box-shadow:0 0 0 4px rgba(255,255,255,.14);flex-shrink:0;
+}
+
+/* ── Dashboard content column ─────────────────────────────────────────────── */
+.dashboard-content{flex:1;overflow-y:auto;min-width:0}
+.tab-content{display:none;padding:4px 4px 24px}
+.tab-content.active{display:block}
+
+/* ── KPI cards ────────────────────────────────────────────────────────────── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.kpi{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px 24px;box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s;
+}
+.kpi:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.kpi-label{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.kpi-value{font-size:2.1rem;font-weight:700;font-family:var(--mono);line-height:1}
+.kpi-sub{
+  display:inline-block;margin-top:10px;padding:3px 12px;border-radius:999px;
+  background:var(--surface2);font-size:.72rem;color:var(--muted);font-weight:600;
+}
+.kpi.danger{background:rgba(193,63,73,.05);border-color:rgba(193,63,73,.16)}
+.kpi.danger .kpi-value{color:var(--red)}
+.kpi.danger .kpi-sub{background:rgba(193,63,73,.1);color:var(--red)}
+.kpi.warn{background:rgba(184,134,11,.05);border-color:rgba(184,134,11,.16)}
+.kpi.warn   .kpi-value{color:var(--amber)}
+.kpi.good   .kpi-value{color:var(--green)}
+.kpi.info   .kpi-value{color:var(--accent)}
+
+/* ── Training result banner ───────────────────────────────────────────────── */
+.train-banner{
+  background:rgba(27,122,76,.08);border:1px solid rgba(27,122,76,.25);
+  border-radius:var(--radius-sm);padding:14px 20px;margin-bottom:20px;
+  display:flex;align-items:center;gap:12px;font-size:.85rem;
+}
+.train-banner .icon{font-size:1.2rem}
+.train-banner strong{color:var(--green)}
+.train-banner span{color:var(--muted)}
+
+/* ── Charts row ───────────────────────────────────────────────────────────── */
+.charts-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px}
+.chart-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px;box-shadow:var(--shadow);transition:box-shadow .15s;
+}
+.chart-card:hover{box-shadow:var(--shadow-lg)}
+.chart-card h3{font-size:.85rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px}
+.chart-card.wide{grid-column:span 2}
+.chart-card.full{grid-column:span 3}
+
+/* ── Donut chart ──────────────────────────────────────────────────────────── */
+.donut-wrap{display:flex;align-items:center;gap:20px}
+.donut-svg{flex-shrink:0}
+.donut-legend{display:flex;flex-direction:column;gap:8px}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:.8rem;cursor:pointer}
+.legend-item:hover{opacity:.8}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.legend-label{color:var(--muted)}
+.legend-value{font-weight:600;font-family:var(--mono);margin-left:auto;padding-left:12px}
+
+/* ── Bar chart ────────────────────────────────────────────────────────────── */
+.bar-list{display:flex;flex-direction:column;gap:10px}
+.bar-item{display:flex;flex-direction:column;gap:4px;cursor:pointer}
+.bar-item:hover .bar-fill{filter:brightness(1.2)}
+.bar-label{display:flex;justify-content:space-between;font-size:.78rem}
+.bar-label span:first-child{color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-label span:last-child{color:var(--text);font-family:var(--mono);font-weight:600}
+.bar-track{background:var(--surface2);border-radius:99px;height:8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:99px;background:var(--accent);transition:width .6s ease}
+
+/* ── Histogram ────────────────────────────────────────────────────────────── */
+.histogram{display:flex;align-items:flex-end;gap:6px;height:110px;padding:0 2px}
+.hist-bar{
+  flex:1;background:var(--accent);border-radius:999px;
+  opacity:.85;transition:opacity .2s,transform .2s;cursor:pointer;min-height:10px;
+  position:relative;
+}
+.hist-bar::after{
+  content:'';position:absolute;top:-4px;left:50%;transform:translateX(-50%);
+  width:9px;height:9px;border-radius:50%;background:var(--surface);
+  border:2px solid var(--accent);
+}
+.hist-bar:hover{opacity:1;transform:scaleY(1.02)}
+
+/* ── Segment charts ───────────────────────────────────────────────────────── */
+.segments-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.seg-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px;box-shadow:var(--shadow);transition:box-shadow .15s;
+}
+.seg-card:hover{box-shadow:var(--shadow-lg)}
+.seg-card h3{font-size:.82rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px}
+.seg-bar-item{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+.seg-bar-label{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted)}
+.seg-bar-track{background:var(--surface2);border-radius:99px;height:14px;overflow:hidden;display:flex}
+.seg-bar-churned{background:var(--red);height:100%;transition:width .5s}
+.seg-bar-retained{background:var(--green);height:100%;transition:width .5s}
+
+/* ── Actions tab ──────────────────────────────────────────────────────────── */
+.actions-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.action-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px 24px;display:flex;gap:16px;align-items:flex-start;box-shadow:var(--shadow);
+  transition:transform .15s,box-shadow .15s;
+}
+.action-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.action-card--spotlight{background:var(--text);border-color:var(--text)}
+.action-card--spotlight .action-body h4{color:#fff}
+.action-card--spotlight .action-body p{color:rgba(255,255,255,.65)}
+.action-card--spotlight .action-body .affected{color:#fff}
+.action-rank{
+  width:36px;height:36px;border-radius:12px;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;font-weight:700;flex-shrink:0;color:#fff;
+}
+.action-body h4{font-size:.92rem;font-weight:600;margin-bottom:4px}
+.action-body p{font-size:.8rem;color:var(--muted);line-height:1.5}
+.action-body .affected{font-size:.75rem;color:var(--accent);font-family:var(--mono);margin-top:6px}
+
+/* ── Customers tab ────────────────────────────────────────────────────────── */
+.table-controls{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.search-box{
+  flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:8px 14px;color:var(--text);font-size:.88rem;
+}
+.search-box:focus{outline:none;border-color:var(--accent)}
+.filter-btn{
+  padding:8px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--surface);color:var(--muted);font-size:.8rem;cursor:pointer;
+  transition:all .15s;
+}
+.filter-btn.active,.filter-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.data-table{width:100%;border-collapse:collapse;font-size:.83rem}
+.data-table th{
+  text-align:left;padding:10px 14px;color:var(--muted);font-weight:600;
+  font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;
+  border-bottom:1px solid var(--border);white-space:nowrap;
+}
+.data-table td{
+  padding:10px 14px;border-bottom:1px solid rgba(22,32,43,.08);
+  vertical-align:middle;
+}
+.data-table tr:hover td{background:var(--surface2);cursor:pointer}
+.risk-badge{
+  display:inline-block;padding:3px 10px;border-radius:99px;font-size:.72rem;font-weight:600;
+}
+.risk-badge.High{background:rgba(193,63,73,.12);color:var(--red)}
+.risk-badge.Medium{background:rgba(184,134,11,.12);color:var(--amber)}
+.risk-badge.Low{background:rgba(27,122,76,.12);color:var(--green)}
+.prob-bar{display:flex;align-items:center;gap:8px}
+.prob-mini{width:60px;height:6px;background:var(--surface2);border-radius:99px;overflow:hidden}
+.prob-mini-fill{height:100%;border-radius:99px}
+.pagination{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:16px;flex-wrap:wrap}
+.page-btn{
+  padding:6px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--surface);color:var(--muted);font-size:.8rem;cursor:pointer;
+}
+.page-btn.active,.page-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── Modals ───────────────────────────────────────────────────────────────── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(22,32,43,.55);
+  z-index:1000;align-items:center;justify-content:center;padding:20px;
+}
+.modal-overlay.active{display:flex}
+.modal{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  max-width:640px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 12px 32px rgba(22,32,43,.18);
+}
+.modal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 24px;border-bottom:1px solid var(--border);position:sticky;top:0;
+  background:var(--surface);
+}
+.modal-header h3{font-size:1rem;font-weight:600}
+.modal-close{background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;line-height:1}
+.modal-body{padding:24px}
+.profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px}
+.profile-item{background:var(--surface2);border-radius:var(--radius-sm);padding:10px 14px}
+.profile-item label{display:block;font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.profile-item span{font-size:.88rem;font-weight:500}
+.shap-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.shap-label{width:180px;font-size:.8rem;color:var(--muted);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shap-bar-wrap{flex:1;background:var(--surface2);border-radius:99px;height:8px;overflow:hidden}
+.shap-bar-fill{height:100%;border-radius:99px}
+.shap-val{width:60px;text-align:right;font-size:.78rem;font-family:var(--mono);color:var(--muted)}
+.rec-card{
+  background:var(--surface2);border-radius:var(--radius-sm);padding:14px 16px;
+  margin-bottom:10px;display:flex;gap:12px;
+}
+.rec-priority{
+  padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;
+  height:fit-content;flex-shrink:0;
+}
+.rec-priority.High{background:rgba(193,63,73,.15);color:var(--red)}
+.rec-priority.Medium{background:rgba(184,134,11,.15);color:var(--amber)}
+.rec-priority.Low{background:rgba(27,122,76,.15);color:var(--green)}
+.rec-text{font-size:.83rem;line-height:1.5}
+.section-title{font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:16px 0 10px}
+
+/* ── Customer list modal ──────────────────────────────────────────────────── */
+.cust-list{display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto}
+.cust-list-item{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface2);border-radius:var(--radius-sm);padding:10px 14px;
+  cursor:pointer;transition:background .15s;font-size:.83rem;
+}
+.cust-list-item:hover{background:var(--border)}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media(max-width:900px){
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .charts-row{grid-template-columns:1fr}
+  .chart-card.wide,.chart-card.full{grid-column:span 1}
+  .segments-grid{grid-template-columns:1fr}
+  .actions-grid{grid-template-columns:1fr}
+  .schema-grid{grid-template-columns:1fr}
+  .dashboard{padding:8px;gap:8px}
+  .side-nav{width:56px;border-radius:20px;padding:14px 0}
+  .side-nav-icon,.side-nav-btn{width:36px;height:36px;border-radius:11px}
+  .side-nav-btn svg{width:17px;height:17px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Training overlay ───────────────────────────────────────────────────── -->
+<div id="training-overlay">
+  <div class="train-card">
+    <div style="font-size:2.5rem;margin-bottom:12px">🧠</div>
+    <h2>Training model on your dataset</h2>
+    <p>ChurnIQ detected a new dataset and is learning its patterns automatically. This takes 1–3 minutes.</p>
+    <div class="train-step" id="train-step-label">Initialising...</div>
+    <div class="progress-track">
+      <div class="progress-fill" id="train-progress-fill"></div>
+    </div>
+    <div class="progress-pct" id="train-progress-pct">0%</div>
+  </div>
+</div>
+
+<!-- ── App shell ──────────────────────────────────────────────────────────── -->
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">Churn<span>IQ</span></div>
+    <div class="header-right">
+      <div class="model-badge">
+        <div class="dot"></div>
+        <span id="model-name-badge">Loading...</span>
+        &nbsp;·&nbsp;
+        <span id="auc-badge">—</span>
+      </div>
+      <button class="btn btn-secondary" onclick="resetToUpload()" style="padding:7px 16px;font-size:.8rem">
+        ↑ New Dataset
+      </button>
+    </div>
+  </header>
+
+  <!-- Upload page -->
+  <div class="upload-page" id="upload-page">
+    <div class="upload-card" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div class="upload-icon">📊</div>
+      <h2>Upload your customer dataset</h2>
+      <p>Drop any CSV or XLSX file here.<br/>
+         ChurnIQ will automatically detect column types, identify the churn target,
+         and train a model — no configuration needed.</p>
+      <input type="file" id="file-input" accept=".csv,.xlsx,.xls"/>
+    </div>
+    <div class="upload-hint">
+      <h4>What ChurnIQ does automatically</h4>
+      <ul>
+        <li>Detects numeric, categorical, and ID columns</li>
+        <li>Finds the churn target column by name or values</li>
+        <li>Trains XGBoost with SHAP explanations</li>
+        <li>Reuses an existing model if the same schema is uploaded again</li>
+        <li>Works with any industry — e-commerce, SaaS, banking, telecom</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Schema confirm page -->
+  <div class="schema-page" id="schema-page">
+    <div class="schema-card">
+      <h2>Confirm detected schema</h2>
+      <div class="subtitle" id="schema-subtitle">Review what ChurnIQ detected before training begins.</div>
+      <div id="schema-warnings-box"></div>
+      <div class="schema-grid" id="schema-grid"></div>
+      <div class="schema-actions">
+        <button class="btn btn-secondary" onclick="resetToUpload()">← Re-upload</button>
+        <button class="btn btn-primary" id="confirm-train-btn" onclick="confirmAndTrain()">
+          ✓ Confirm &amp; Analyse
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard" id="dashboard">
+
+    <!-- Floating side nav -->
+    <nav class="side-nav">
+      <button class="side-nav-icon" onclick="resetToUpload()" title="New dataset">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <div class="side-nav-tabs">
+        <button class="tab side-nav-btn active" onclick="switchTab('overview',this)" title="Overview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>
+        </button>
+        <button class="tab side-nav-btn" onclick="switchTab('segments',this)" title="Segments">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12.5" y="8" width="3" height="10" rx="1"/><rect x="18" y="5" width="3" height="13" rx="1"/></svg>
+        </button>
+        <button class="tab side-nav-btn" onclick="switchTab('actions',this)" title="Actions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+        </button>
+        <button class="tab side-nav-btn" onclick="switchTab('customers',this)" title="Customers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </button>
+      </div>
+      <div class="side-nav-model" id="side-nav-model-dot" title="Active model"></div>
+    </nav>
+
+    <!-- Scrollable content column -->
+    <div class="dashboard-content">
+
+      <!-- Tab: Overview -->
+      <div class="tab-content active" id="tab-overview">
+        <div id="train-banner-area"></div>
+        <div class="kpi-row" id="kpi-row"></div>
+        <div class="charts-row">
+          <div class="chart-card">
+            <h3>Churn Timeline</h3>
+            <div class="donut-wrap">
+              <svg class="donut-svg" id="donut-timeline" width="120" height="120" viewBox="0 0 120 120"></svg>
+              <div class="donut-legend" id="legend-timeline"></div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Risk Level</h3>
+            <div class="donut-wrap">
+              <svg class="donut-svg" id="donut-risk" width="120" height="120" viewBox="0 0 120 120"></svg>
+              <div class="donut-legend" id="legend-risk"></div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Probability Distribution</h3>
+            <div class="histogram" id="histogram"></div>
+          </div>
+        </div>
+        <div class="chart-card full">
+          <h3>Top Churn Drivers</h3>
+          <div class="bar-list" id="drivers-bar"></div>
+        </div>
+      </div>
+
+      <!-- Tab: Segments -->
+      <div class="tab-content" id="tab-segments">
+        <div class="segments-grid" id="segments-grid"></div>
+      </div>
+
+      <!-- Tab: Actions -->
+      <div class="tab-content" id="tab-actions">
+        <div class="actions-grid" id="actions-grid"></div>
+      </div>
+
+      <!-- Tab: Customers -->
+      <div class="tab-content" id="tab-customers">
+        <div class="table-controls">
+          <input class="search-box" id="cust-search" placeholder="Search customer ID..." oninput="renderTable()"/>
+          <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+          <button class="filter-btn" onclick="setFilter('churn',this)">Will Churn</button>
+          <button class="filter-btn" onclick="setFilter('high',this)">High Risk</button>
+          <button class="filter-btn" onclick="setFilter('medium',this)">Medium Risk</button>
+          <button class="filter-btn" onclick="setFilter('low',this)">Low Risk</button>
+        </div>
+        <table class="data-table">
+          <thead id="table-head"></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+        <div class="pagination" id="pagination"></div>
+      </div>
+
+    </div><!-- /dashboard-content -->
+  </div><!-- /dashboard -->
+</div><!-- /app -->
+
+<!-- Customer detail modal -->
+<div class="modal-overlay" id="detail-modal" onclick="if(event.target===this)closeModal('detail-modal')">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="detail-title">Customer Detail</h3>
+      <button class="modal-close" onclick="closeModal('detail-modal')">×</button>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+
+<!-- Customer list modal -->
+<div class="modal-overlay" id="list-modal" onclick="if(event.target===this)closeModal('list-modal')">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h3 id="list-modal-title">Customers</h3>
+      <button class="modal-close" onclick="closeModal('list-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="cust-list" id="list-modal-body"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let _data        = null;   // full analytics payload
+let _customers   = [];     // flat customer array
+let _filter      = 'all';
+let _page        = 1;
+const PAGE_SIZE  = 20;
+let _uploadedFile = null;  // File object held for schema confirm → train step
+let _schemaDetected = null;// schema returned from a pre-check (future use)
+let _trainedOnUpload = false;
+let _trainingResult  = null;
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  setupDrop();
+  document.getElementById('file-input').addEventListener('change', e => {
+    if(e.target.files[0]) handleFile(e.target.files[0]);
+  });
+  loadModelBadge();
+});
+
+async function loadModelBadge(){
+  try{
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    document.getElementById('model-name-badge').textContent = d.active_model || 'Unknown';
+    document.getElementById('auc-badge').textContent = d.auc_cv ? `AUC ${d.auc_cv}` : '—';
+  }catch(e){
+    document.getElementById('model-name-badge').textContent = 'API offline';
+  }
+}
+
+// ── Drag & drop ────────────────────────────────────────────────────────────────
+function setupDrop(){
+  const zone = document.getElementById('drop-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if(f) handleFile(f);
+  });
+}
+
+// ── File handler ───────────────────────────────────────────────────────────────
+async function handleFile(file){
+  _uploadedFile = file;
+
+  // Show schema confirm page with a loading state
+  showPage('schema');
+  document.getElementById('schema-subtitle').textContent =
+    `Reading "${file.name}"... detecting column types`;
+  document.getElementById('schema-grid').innerHTML =
+    '<div style="color:var(--muted);font-size:.85rem;grid-column:span 2">Analysing dataset structure...</div>';
+  document.getElementById('confirm-train-btn').disabled = true;
+
+  // Pre-read the file to extract schema client-side preview
+  // We'll just show the file info and let the backend do full inference
+  // Show a simplified preview while the user confirms
+  await showSchemaPreview(file);
+}
+
+async function showSchemaPreview(file){
+  // We send the file to a lightweight schema-only endpoint
+  // For now we show file info and let user confirm
+  const subtitle = document.getElementById('schema-subtitle');
+  subtitle.textContent =
+    `"${file.name}" · ${(file.size/1024).toFixed(0)} KB · Ready to analyse`;
+
+  // Build a simple preview card
+  const grid = document.getElementById('schema-grid');
+  grid.innerHTML = `
+    <div class="schema-box" style="grid-column:span 2">
+      <h4>File detected</h4>
+      <div style="font-size:.85rem;color:var(--muted);line-height:1.8">
+        <div><strong style="color:var(--text)">${file.name}</strong></div>
+        <div>Size: ${(file.size/1024).toFixed(1)} KB</div>
+        <div style="margin-top:8px;color:var(--accent);font-size:.8rem">
+          ✓ ChurnIQ will automatically detect all column types, identify the churn target,
+          and train a model if this is a new dataset schema.
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('schema-warnings-box').innerHTML = `
+    <div class="schema-warning" style="background:rgba(31,111,92,.08);border-color:rgba(31,111,92,.25);color:var(--accent)">
+      ℹ If this dataset matches a previously trained model, results will appear instantly.
+      Otherwise, training will begin automatically (1–3 minutes).
+    </div>
+  `;
+
+  document.getElementById('confirm-train-btn').disabled = false;
+}
+
+// ── Confirm and train ──────────────────────────────────────────────────────────
+async function confirmAndTrain(){
+  if(!_uploadedFile) return;
+
+  showPage('none');
+
+  const formData = new FormData();
+  formData.append('file', _uploadedFile);
+
+  try{
+    const resp = await fetch(`${API}/predict/batch-analyze`, {
+      method: 'POST',
+      body:   formData,
+    });
+
+    // ── Case 1: Instant response (schema matched, no training needed) ────────
+    if(resp.status === 200){
+      const payload = await resp.json();
+      _trainedOnUpload = payload.trained_on_upload || false;
+      _trainingResult  = payload.training_result   || null;
+      loadDashboard(payload);
+      loadModelBadge();
+      return;
+    }
+
+    // ── Case 2: Background training started (202 Accepted) ───────────────────
+    if(resp.status === 202){
+      const { job_id, label } = await resp.json();
+      showTrainingOverlay(true);
+      await pollTrainingJob(job_id, label);
+      return;
+    }
+
+    // ── Case 3: Error ──────────────────────────────────────────────────────────
+    const err = await resp.json();
+    alert(`Error: ${err.detail || 'Unknown error from server.'}`);
+    showPage('upload');
+
+  }catch(e){
+    hideTrainingOverlay();
+    alert(`Could not reach the backend.\n\nMake sure uvicorn is running:\nuvicorn backend.main:app --reload --port 8000\n\n${e}`);
+    showPage('upload');
+  }
+}
+
+// ── Poll training job until complete ────────────────────────────────────────────
+async function pollTrainingJob(jobId, label){
+  const fill  = document.getElementById('train-progress-fill');
+  const label_el = document.getElementById('train-step-label');
+  const pct   = document.getElementById('train-progress-pct');
+
+  // Update overlay title to show which dataset is training
+  const titleEl = document.querySelector('.train-card h2');
+  if(titleEl) titleEl.textContent = `Training model on "${label}"`;
+
+  while(true){
+    await new Promise(r => setTimeout(r, 1500));
+
+    let statusResp;
+    try{
+      statusResp = await fetch(`${API}/train/status/${jobId}`);
+    }catch(e){
+      // Network hiccup — keep polling
+      continue;
+    }
+
+    if(!statusResp.ok){
+      hideTrainingOverlay();
+      alert('Lost connection to training job. Please try again.');
+      showPage('upload');
+      return;
+    }
+
+    const status = await statusResp.json();
+
+    // Update progress bar with REAL backend values
+    fill.style.width  = status.pct + '%';
+    pct.textContent   = status.pct + '%';
+    label_el.textContent = status.step;
+
+    if(status.status === 'complete'){
+      break;
+    }
+
+    if(status.status === 'error'){
+      hideTrainingOverlay();
+      alert(`Training failed: ${status.error}`);
+      showPage('upload');
+      return;
+    }
+  }
+
+  // ── Fetch final result ───────────────────────────────────────────────────────
+  try{
+    const resultResp = await fetch(`${API}/train/result/${jobId}`);
+    if(!resultResp.ok){
+      const err = await resultResp.json();
+      hideTrainingOverlay();
+      alert(`Error fetching results: ${err.detail}`);
+      showPage('upload');
+      return;
+    }
+
+    const payload = await resultResp.json();
+    hideTrainingOverlay();
+
+    _trainedOnUpload = payload.trained_on_upload || false;
+    _trainingResult  = payload.training_result   || null;
+
+    loadDashboard(payload);
+    loadModelBadge();
+
+  }catch(e){
+    hideTrainingOverlay();
+    alert(`Could not fetch training result.\n\n${e}`);
+    showPage('upload');
+  }
+}
+
+// ── Training overlay ──────────────────────────────────────────────────────────
+function showTrainingOverlay(on){
+  const el = document.getElementById('training-overlay');
+  el.classList.toggle('active', on);
+}
+
+function hideTrainingOverlay(){
+  showTrainingOverlay(false);
+  // Reset progress bar and title for next time
+  document.getElementById('train-progress-fill').style.width = '0%';
+  document.getElementById('train-progress-pct').textContent  = '0%';
+  document.getElementById('train-step-label').textContent    = 'Initialising...';
+  const titleEl = document.querySelector('.train-card h2');
+  if(titleEl) titleEl.textContent = 'Training model on your dataset';
+}
+
+// ── Page routing ───────────────────────────────────────────────────────────────
+function showPage(page){
+  document.getElementById('upload-page').style.display  = page==='upload'  ? 'flex'  : 'none';
+  document.getElementById('schema-page').classList.toggle('active', page==='schema');
+  document.getElementById('dashboard').classList.toggle('active',   page==='dashboard');
+}
+
+function resetToUpload(){
+  _data = null; _customers = []; _uploadedFile = null;
+  document.getElementById('file-input').value = '';
+  showPage('upload');
+}
+
+// ── Dashboard loader ───────────────────────────────────────────────────────────
+function loadDashboard(payload){
+  _data      = payload;
+  _customers = payload.customers || [];
+  showPage('dashboard');
+
+  renderTrainBanner();
+  renderKPIs();
+  renderDonut('donut-timeline','legend-timeline', getTimelineData(), timelinePalette());
+  renderDonut('donut-risk','legend-risk', getRiskData(), riskPalette());
+  renderHistogram();
+  renderDrivers();
+  renderSegments();
+  renderActions();
+  renderTableHead();
+  renderTable();
+}
+
+// ── Training result banner ─────────────────────────────────────────────────────
+function renderTrainBanner(){
+  const area = document.getElementById('train-banner-area');
+  if(_trainedOnUpload && _trainingResult){
+    const r = _trainingResult;
+    area.innerHTML = `
+      <div class="train-banner">
+        <div class="icon">🎉</div>
+        <div>
+          <strong>New model trained successfully</strong>
+          <span> · CV AUC ${r.auc_cv} · ${r.n_features} features · ${r.duration_seconds}s · Hash: ${r.dataset_hash}</span>
+        </div>
+      </div>`;
+  } else if(_data.reused_model){
+    area.innerHTML = `
+      <div class="train-banner" style="background:rgba(46,108,158,.07);border-color:rgba(46,108,158,.25)">
+        <div class="icon">⚡</div>
+        <div><strong style="color:var(--blue)">Existing model reused</strong>
+          <span> · Same schema detected — skipped retraining</span></div>
+      </div>`;
+  } else {
+    area.innerHTML = `
+      <div class="train-banner">
+        <div class="icon">✅</div>
+        <div><strong>Default model active</strong>
+          <span> · Exact schema match — no training required</span></div>
+      </div>`;
+  }
+}
+
+// ── KPIs ───────────────────────────────────────────────────────────────────────
+function renderKPIs(){
+  const s  = _data.summary;
+  const at = Math.round((_customers.filter(c=>c.churn_probability>=0.3&&c.churn_probability<0.5).length));
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi info">
+      <div class="kpi-label">Total Customers</div>
+      <div class="kpi-value">${s.total_customers.toLocaleString()}</div>
+      <div class="kpi-sub">in dataset</div>
+    </div>
+    <div class="kpi danger">
+      <div class="kpi-label">Predicted to Churn</div>
+      <div class="kpi-value">${s.predicted_churn.toLocaleString()}</div>
+      <div class="kpi-sub">${s.churn_rate_pct}% of customers</div>
+    </div>
+    <div class="kpi warn">
+      <div class="kpi-label">At Risk</div>
+      <div class="kpi-value">${s.high_risk.toLocaleString()}</div>
+      <div class="kpi-sub">high risk customers</div>
+    </div>
+    <div class="kpi good">
+      <div class="kpi-label">Stable</div>
+      <div class="kpi-value">${s.low_risk.toLocaleString()}</div>
+      <div class="kpi-sub">low risk customers</div>
+    </div>`;
+}
+
+// ── Donut chart ────────────────────────────────────────────────────────────────
+function getTimelineData(){
+  const t = _data.timeline;
+  return [
+    {label:'1 Month',  value:t['1_month']  || t['1 month']  || 0, filter:'1m'},
+    {label:'3 Months', value:t['3_months'] || t['3 months'] || 0, filter:'3m'},
+    {label:'6 Months', value:t['6_months'] || t['6 months'] || 0, filter:'6m'},
+    {label:'Stable',   value:t['stable']   || 0,                   filter:'stable'},
+  ];
+}
+function getRiskData(){
+  const s = _data.summary;
+  return [
+    {label:'High',   value:s.high_risk,   filter:'high'},
+    {label:'Medium', value:s.medium_risk, filter:'medium'},
+    {label:'Low',    value:s.low_risk,    filter:'low'},
+  ];
+}
+function timelinePalette(){ return ['#C13F49','#B8860B','#2E6C9E','#1B7A4C'] }
+function riskPalette(){     return ['#C13F49','#B8860B','#1B7A4C'] }
+
+function renderDonut(svgId, legendId, items, colors){
+  const total = items.reduce((s,i)=>s+i.value,0) || 1;
+  const cx=60,cy=60,r=46,stroke=16;
+  let offset=0;
+  let paths='';
+
+  items.forEach((item,i)=>{
+    const pct  = item.value/total;
+    const dash = pct * 2*Math.PI*r;
+    const gap  = 2*Math.PI*r - dash;
+    const rot  = offset*360-90;
+    paths += `<circle cx="${cx}" cy="${cy}" r="${r}"
+      fill="none" stroke="${colors[i]}" stroke-width="${stroke}"
+      stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
+      transform="rotate(${rot.toFixed(2)} ${cx} ${cy})"
+      style="cursor:pointer" opacity="0.9"
+      onclick="showCustomerList('${item.label}',getFilteredByLabel('${item.label}'))"/>`;
+    offset += pct;
+  });
+
+  document.getElementById(svgId).innerHTML =
+    paths + `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle"
+    font-size="13" font-weight="700" fill="#16202B">${total.toLocaleString()}</text>`;
+
+  document.getElementById(legendId).innerHTML = items.map((item,i)=>`
+    <div class="legend-item" onclick="showCustomerList('${item.label}',getFilteredByLabel('${item.label}'))">
+      <div class="legend-dot" style="background:${colors[i]}"></div>
+      <span class="legend-label">${item.label}</span>
+      <span class="legend-value">${item.value.toLocaleString()}</span>
+    </div>`).join('');
+}
+
+function getFilteredByLabel(label){
+  const lbl = label.toLowerCase();
+  return _customers.filter(c=>{
+    const tl = (c.churn_timeline||'').toLowerCase();
+    const rl = (c.risk_level||'').toLowerCase();
+    if(lbl==='1 month')  return tl.includes('1');
+    if(lbl==='3 months') return tl.includes('3');
+    if(lbl==='6 months') return tl.includes('6');
+    if(lbl==='stable')   return tl.includes('stable');
+    if(lbl==='high')     return rl==='high';
+    if(lbl==='medium')   return rl==='medium';
+    if(lbl==='low')      return rl==='low';
+    return false;
+  });
+}
+
+// ── Histogram ──────────────────────────────────────────────────────────────────
+function renderHistogram(){
+  const hist = _data.histogram||[];
+  if(!hist.length) return;
+  const max = Math.max(...hist.map(h=>h.count),1);
+  document.getElementById('histogram').innerHTML = hist.map(h=>`
+    <div class="hist-bar" style="height:${Math.max(h.count/max*100,2)}%"
+      title="${(h.bin_start*100).toFixed(0)}–${(h.bin_end*100).toFixed(0)}%: ${h.count} customers"
+      onclick="showCustomerList('Prob ${(h.bin_start*100).toFixed(0)}-${(h.bin_end*100).toFixed(0)}%',
+        _customers.filter(c=>c.churn_probability>=${h.bin_start}&&c.churn_probability<${h.bin_end}))">
+    </div>`).join('');
+}
+
+// ── Drivers ────────────────────────────────────────────────────────────────────
+function renderDrivers(){
+  const drivers = (_data.top_drivers||[]).slice(0,10);
+  const max = drivers[0]?.importance||1;
+  document.getElementById('drivers-bar').innerHTML = drivers.map(d=>`
+    <div class="bar-item" onclick="showCustomerList('${d.feature}',_customers)">
+      <div class="bar-label">
+        <span>${d.feature}</span>
+        <span>${d.importance.toFixed(4)}</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${(d.importance/max*100).toFixed(1)}%"></div>
+      </div>
+    </div>`).join('');
+}
+
+// ── Segments ───────────────────────────────────────────────────────────────────
+function renderSegments(){
+  const segs = _data.segments||{};
+  const grid = document.getElementById('segments-grid');
+  grid.innerHTML = '';
+
+  Object.entries(segs).slice(0,9).forEach(([col, data])=>{
+    const card = document.createElement('div');
+    card.className = 'seg-card';
+    card.innerHTML = `<h3>${col}</h3>`;
+
+    Object.entries(data).sort((a,b)=>b[1].total-a[1].total).slice(0,6).forEach(([val,counts])=>{
+      const total    = counts.total||1;
+      const churnPct = (counts.churned/total*100).toFixed(0);
+      const retPct   = (counts.retained/total*100).toFixed(0);
+      card.innerHTML += `
+        <div class="seg-bar-item">
+          <div class="seg-bar-label">
+            <span>${val}</span><span>${churnPct}% churn</span>
+          </div>
+          <div class="seg-bar-track">
+            <div class="seg-bar-churned"  style="width:${churnPct}%"></div>
+            <div class="seg-bar-retained" style="width:${retPct}%"></div>
+          </div>
+        </div>`;
+    });
+    grid.appendChild(card);
+  });
+
+  if(!Object.keys(segs).length){
+    grid.innerHTML = '<div style="color:var(--muted);font-size:.88rem">No categorical segments available for this dataset.</div>';
+  }
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────────
+function renderActions(){
+  const drivers  = (_data.top_drivers||[]).slice(0,5);
+  const highRisk = _customers.filter(c=>c.risk_level==='High');
+
+  const actionMap = {
+    default: [
+      {title:'Proactive outreach campaign',    desc:'Contact high-risk customers with personalised retention offers before they cancel.'},
+      {title:'Loyalty reward programme',        desc:'Offer exclusive benefits to customers showing early churn signals.'},
+      {title:'Customer success check-in',       desc:'Schedule proactive support calls with at-risk accounts.'},
+      {title:'Personalised discount offer',     desc:'Send targeted discounts to customers with declining engagement.'},
+      {title:'Re-engagement email sequence',    desc:'Automated drip campaign for customers with low recent activity.'},
+    ]
+  };
+
+  // Map top SHAP drivers to generic actions
+  const actions = drivers.map((d,i)=>{
+    const fname = d.feature.toLowerCase();
+    let title='Retention intervention', desc='Address this key churn driver proactively.';
+
+    if(fname.includes('tenure'))       { title='Early tenure support programme'; desc='New customers churn most. Add onboarding check-ins in the first 3 months.'; }
+    else if(fname.includes('complain')){ title='Complaint resolution fast-track'; desc='Resolve open complaints within 24hrs — complaints are a leading churn signal.'; }
+    else if(fname.includes('cashback') || fname.includes('coupon')){ title='Cashback & rewards programme'; desc='Increase cashback rates for at-risk customers to improve perceived value.'; }
+    else if(fname.includes('order'))   { title='Re-order incentive campaign'; desc='Customers with low order counts need a reason to return. Offer first re-order discounts.'; }
+    else if(fname.includes('satisf'))  { title='Satisfaction improvement drive'; desc='Survey low-satisfaction customers and address pain points directly.'; }
+    else if(fname.includes('address') || fname.includes('device')){ title='Engagement deepening campaign'; desc='Customers with fewer touchpoints have higher churn risk. Drive multi-channel engagement.'; }
+    else if(fname.includes('day') || fname.includes('since')){ title='Reactivation campaign'; desc='Target customers who have not engaged recently with a win-back offer.'; }
+    else { title=actionMap.default[i%5].title; desc=actionMap.default[i%5].desc; }
+
+    const affected = Math.round(highRisk.length * (1 - i*0.12));
+    return {title, desc, affected: Math.max(affected,1)};
+  });
+
+  // Fallback if no drivers
+  const finalActions = actions.length ? actions : actionMap.default.slice(0,5).map((a,i)=>({...a, affected: Math.round(highRisk.length*(1-i*.12))||1}));
+
+  document.getElementById('actions-grid').innerHTML = finalActions.map((a,i)=>`
+    <div class="action-card${i===0?' action-card--spotlight':''}">
+      <div class="action-rank" style="background:${['#1F6F5C','#C9622A','#2E6C9E','#1B7A4C','#B8860B'][i]}">${i+1}</div>
+      <div class="action-body">
+        <h4>${a.title}</h4>
+        <p>${a.desc}</p>
+        <div class="affected">~${a.affected} customers affected</div>
+      </div>
+    </div>`).join('');
+}
+
+// ── Customers table ────────────────────────────────────────────────────────────
+function renderTableHead(){
+  const schema = _data.schema || {};
+  const featureCols = (schema.feature_cols || []).slice(0,6); // show first 6 feature cols
+  document.getElementById('table-head').innerHTML = `<tr>
+    <th>Customer ID</th>
+    <th>Churn Prob.</th>
+    <th>Risk</th>
+    <th>Timeline</th>
+    ${featureCols.map(c=>`<th>${c}</th>`).join('')}
+  </tr>`;
+}
+
+function getFiltered(){
+  const q = (document.getElementById('cust-search')?.value||'').toLowerCase();
+  return _customers.filter(c=>{
+    const cid = String(c.customer_id||'').toLowerCase();
+    if(q && !cid.includes(q)) return false;
+    if(_filter==='churn')  return c.churn_probability>=0.5;
+    if(_filter==='high')   return c.risk_level==='High';
+    if(_filter==='medium') return c.risk_level==='Medium';
+    if(_filter==='low')    return c.risk_level==='Low';
+    return true;
+  });
+}
+
+function setFilter(f, btn){
+  _filter=f; _page=1;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+function renderTable(){
+  const schema     = _data.schema||{};
+  const featureCols= (schema.feature_cols||[]).slice(0,6);
+  const filtered   = getFiltered();
+  const total      = filtered.length;
+  const totalPages = Math.ceil(total/PAGE_SIZE)||1;
+  if(_page>totalPages) _page=1;
+  const slice = filtered.slice((_page-1)*PAGE_SIZE, _page*PAGE_SIZE);
+
+  const probColor = p => p>=0.7?'var(--red)':p>=0.4?'var(--amber)':'var(--green)';
+
+  document.getElementById('table-body').innerHTML = slice.map(c=>`
+    <tr onclick="showDetail('${c.customer_id}')">
+      <td style="font-family:var(--mono);color:var(--accent)">${c.customer_id}</td>
+      <td>
+        <div class="prob-bar">
+          <div class="prob-mini"><div class="prob-mini-fill"
+            style="width:${(c.churn_probability*100).toFixed(0)}%;background:${probColor(c.churn_probability)}"></div></div>
+          <span style="font-family:var(--mono);font-size:.8rem">${(c.churn_probability*100).toFixed(1)}%</span>
+        </div>
+      </td>
+      <td><span class="risk-badge ${c.risk_level}">${c.risk_level}</span></td>
+      <td style="color:var(--muted);font-size:.8rem">${c.churn_timeline||'—'}</td>
+      ${featureCols.map(col=>`<td style="color:var(--muted);font-size:.8rem">${c[col]??'—'}</td>`).join('')}
+    </tr>`).join('');
+
+  // Pagination
+  const pages=[];
+  for(let i=1;i<=totalPages;i++) pages.push(i);
+  document.getElementById('pagination').innerHTML = [
+    `<span style="font-size:.8rem;color:var(--muted)">${total} customers</span>`,
+    ...pages.filter(p=>p===1||p===totalPages||Math.abs(p-_page)<=2).map(p=>
+      `<button class="page-btn${p===_page?' active':''}" onclick="_page=${p};renderTable()">${p}</button>`)
+  ].join('');
+}
+
+// ── Customer detail modal ──────────────────────────────────────────────────────
+function showDetail(customerId){
+  const c = _customers.find(x=>String(x.customer_id)===String(customerId));
+  if(!c) return;
+
+  const schema     = _data.schema||{};
+  const featureCols= schema.feature_cols||[];
+  const probPct    = (c.churn_probability*100).toFixed(1);
+  const probColor  = c.churn_probability>=0.7?'var(--red)':c.churn_probability>=0.4?'var(--amber)':'var(--green)';
+
+  const profileHtml = featureCols.map(col=>`
+    <div class="profile-item">
+      <label>${col}</label>
+      <span>${c[col]??'—'}</span>
+    </div>`).join('');
+
+  const shapMax = Math.max(...(c.top_shap_features||[]).map(s=>Math.abs(s.shap_value)),0.001);
+  const shapHtml = (c.top_shap_features||[]).map(s=>`
+    <div class="shap-row">
+      <div class="shap-label" title="${s.feature}">${s.feature}</div>
+      <div class="shap-bar-wrap">
+        <div class="shap-bar-fill" style="width:${(Math.abs(s.shap_value)/shapMax*100).toFixed(0)}%;
+          background:${s.direction==='increases'?'var(--red)':'var(--green)'}"></div>
+      </div>
+      <div class="shap-val">${s.shap_value>0?'+':''}${s.shap_value.toFixed(3)}</div>
+    </div>`).join('');
+
+  const recs = generateRecs(c);
+
+  document.getElementById('detail-title').textContent = `Customer ${c.customer_id}`;
+  document.getElementById('detail-body').innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;
+      padding:16px;background:var(--surface2);border-radius:var(--radius-sm)">
+      <div style="font-size:2rem">${c.risk_level==='High'?'🔴':c.risk_level==='Medium'?'🟡':'🟢'}</div>
+      <div>
+        <div style="font-size:1.1rem;font-weight:700">${probPct}% churn probability</div>
+        <div style="font-size:.82rem;color:var(--muted)">${c.risk_level} risk · ${c.churn_timeline||'—'}</div>
+      </div>
+      <div style="margin-left:auto">
+        <div style="width:80px;height:80px;border-radius:50%;
+          background:conic-gradient(${probColor} ${probPct}%,var(--surface2) 0);
+          display:flex;align-items:center;justify-content:center">
+          <div style="width:60px;height:60px;border-radius:50%;background:var(--surface2);
+            display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700">
+            ${probPct}%
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="section-title">Customer Profile</div>
+    <div class="profile-grid">${profileHtml}</div>
+    <div class="section-title">Top Churn Drivers (SHAP)</div>
+    ${shapHtml || '<div style="color:var(--muted);font-size:.85rem">SHAP values not available</div>'}
+    <div class="section-title">Recommended Actions</div>
+    ${recs.map(r=>`
+      <div class="rec-card">
+        <div class="rec-priority ${r.priority}">${r.priority}</div>
+        <div class="rec-text">${r.action}</div>
+      </div>`).join('')}
+  `;
+
+  openModal('detail-modal');
+}
+
+function generateRecs(c){
+  const recs = [];
+  const shap = c.top_shap_features||[];
+
+  shap.forEach(s=>{
+    const f = s.feature.toLowerCase();
+    const inc = s.direction==='increases';
+
+    if(f.includes('tenure') && inc)
+      recs.push({priority:'High', action:'Enrol in early-tenure loyalty programme. Schedule a 30-day check-in call.'});
+    else if(f.includes('complain') && inc)
+      recs.push({priority:'High', action:'Escalate open complaint to senior support. Offer service credit as goodwill.'});
+    else if(f.includes('cashback') && !inc)
+      recs.push({priority:'High', action:'Offer enhanced cashback rate for next 3 orders to improve perceived value.'});
+    else if(f.includes('order') && inc)
+      recs.push({priority:'Medium', action:'Send personalised re-order nudge with a first-order-back discount.'});
+    else if(f.includes('satisf') && inc)
+      recs.push({priority:'Medium', action:'Send CSAT survey and follow up with targeted support based on feedback.'});
+    else if(f.includes('day') || f.includes('since'))
+      recs.push({priority:'Medium', action:'Trigger win-back campaign: personalised offer + highlight new features.'});
+    else if(f.includes('address') || f.includes('device'))
+      recs.push({priority:'Low', action:'Encourage multi-channel engagement through app push notifications.'});
+    else
+      recs.push({priority:'Medium', action:`Monitor "${s.feature}" — this is a top churn driver for this customer.`});
+  });
+
+  if(!recs.length){
+    recs.push(
+      {priority:'Medium', action:'Schedule proactive check-in with customer success team.'},
+      {priority:'Low',    action:'Enrol in standard retention email sequence.'},
+    );
+  }
+  return recs.slice(0,3);
+}
+
+// ── Customer list modal ────────────────────────────────────────────────────────
+function showCustomerList(title, customers){
+  const sorted = [...customers].sort((a,b)=>b.churn_probability-a.churn_probability);
+  document.getElementById('list-modal-title').textContent = `${title} (${sorted.length})`;
+  document.getElementById('list-modal-body').innerHTML = sorted.slice(0,100).map(c=>`
+    <div class="cust-list-item" onclick="closeModal('list-modal');showDetail('${c.customer_id}')">
+      <span style="font-family:var(--mono);color:var(--accent)">${c.customer_id}</span>
+      <span>
+        <span class="risk-badge ${c.risk_level}" style="margin-right:8px">${c.risk_level}</span>
+        <span style="font-family:var(--mono);font-size:.8rem">${(c.churn_probability*100).toFixed(1)}%</span>
+      </span>
+    </div>`).join('') || '<div style="color:var(--muted);font-size:.85rem">No customers in this segment.</div>';
+  openModal('list-modal');
+}
+
+// ── Modal helpers ──────────────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('active') }
+function closeModal(id){ document.getElementById(id).classList.remove('active') }
+
+// ── Tab switching ──────────────────────────────────────────────────────────────
+function switchTab(name, btn){
+  document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

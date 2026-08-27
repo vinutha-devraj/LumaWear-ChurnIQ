@@ -1,0 +1,26 @@
+{
+  "dataset_name": "test_telecom.csv",
+  "dataset_hash": "91136aac5003",
+  "n_rows": 500,
+  "n_features_raw": 9,
+  "n_features_post_ohe": 22,
+  "churn_rate": 26.0,
+  "best_model": "XGBoost",
+  "auc_cv": 0.5174,
+  "auc_cv_std": 0.0477,
+  "auc_train": 1.0,
+  "xgb_params": {
+    "n_estimators": 300,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "scale_pos_weight": 2.8462,
+    "use_label_encoder": false,
+    "eval_metric": "logloss",
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "class_balance": "imbalanced",
+  "warnings": []
+}

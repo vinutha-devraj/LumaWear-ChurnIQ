@@ -1,0 +1,42 @@
+{
+  "dataset_name": "test_telecom.csv",
+  "dataset_hash": "91136aac5003",
+  "n_rows": 500,
+  "n_cols": 11,
+  "target_col": "churned",
+  "id_cols": [
+    "customer_id"
+  ],
+  "numeric_cols": [
+    "age",
+    "monthly_spend",
+    "tenure_months",
+    "support_calls"
+  ],
+  "categorical_cols": [
+    "contract_type",
+    "payment_method",
+    "internet_service",
+    "num_products",
+    "satisfaction"
+  ],
+  "datetime_cols": [],
+  "text_cols": [],
+  "drop_cols": [
+    "customer_id"
+  ],
+  "feature_cols": [
+    "age",
+    "monthly_spend",
+    "tenure_months",
+    "support_calls",
+    "contract_type",
+    "payment_method",
+    "internet_service",
+    "num_products",
+    "satisfaction"
+  ],
+  "churn_rate": 26.0,
+  "class_balance": "imbalanced",
+  "warnings": []
+}

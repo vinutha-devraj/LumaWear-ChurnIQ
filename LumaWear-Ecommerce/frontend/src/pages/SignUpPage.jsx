@@ -1,0 +1,11 @@
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+export default function SignUpPage() {
+  const { signUp } = useAuth(); const navigate = useNavigate();
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "" }); const [error, setError] = useState(""); const [submitting, setSubmitting] = useState(false);
+  const submit = async (event) => { event.preventDefault(); setError(""); setSubmitting(true); try { await signUp(form); navigate("/account", { replace: true }); } catch (err) { setError(err.message); } finally { setSubmitting(false); } };
+  const input = (key, type = "text") => <input id={key} type={type} required minLength={key === "password" ? 8 : undefined} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="focus-ring mt-1 w-full rounded-lg border border-sand px-3 py-2 text-sm" />;
+  return <main className="flex min-h-screen items-center justify-center bg-cream p-4"><section className="w-full max-w-md rounded-xl2 border border-sand bg-white p-6"><h1 className="text-2xl font-semibold">Create account</h1><p className="mt-1 text-sm text-charcoal/70">Save addresses, track orders, and build your wishlist.</p><form onSubmit={submit} className="mt-5 space-y-4"><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">First name{input("firstName")}</label><label className="text-sm font-medium">Last name{input("lastName")}</label></div><label className="block text-sm font-medium">Email{input("email", "email")}</label><label className="block text-sm font-medium">Password{input("password", "password")}</label>{error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}<button disabled={submitting} className="focus-ring w-full rounded-full bg-ink px-5 py-2 text-sm font-medium text-cream disabled:opacity-60">{submitting ? "Creating account…" : "Create account"}</button></form><p className="mt-4 text-sm text-charcoal/70">Already have an account? <Link to="/sign-in" className="focus-ring rounded-sm font-medium text-ink underline">Sign in</Link></p></section></main>;
+}

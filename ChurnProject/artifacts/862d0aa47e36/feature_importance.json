@@ -1,0 +1,16 @@
+{
+  "account_age_days": 0.777138,
+  "avg_order_value": 0.732403,
+  "total_orders": 0.461728,
+  "returns_count": 0.366598,
+  "wishlist_items": 0.365149,
+  "region_North": 0.155981,
+  "subscription_Free": 0.120526,
+  "region_East": 0.086575,
+  "device_type_Desktop": 0.075463,
+  "device_type_Mobile": 0.064976,
+  "region_South": 0.063549,
+  "region_West": 0.052292,
+  "device_type_Tablet": 0.034924,
+  "subscription_Premium": 0.031092
+}
