@@ -18,6 +18,15 @@ import {
   verifySmtpConnection,
 } from "./churn/emailService.js";
 import { getPublicStoreUrl } from "./churn/retentionEmailTemplates.js";
+import {
+  getAutomaticRetentionConfig,
+  updateAutomaticRetentionConfig,
+  executeAutomaticRetentionBatch,
+} from "./churn/automaticRetentionService.js";
+import {
+  initAutomaticRetentionScheduler,
+  triggerOnDemandEvaluation,
+} from "./churn/automaticRetentionScheduler.js";
 
 dotenv.config();
 
@@ -80,6 +89,7 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ["customer", "admin"], default: "customer" },
     lastLoginAt: { type: Date, default: null },
+    marketingOptOut: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -232,6 +242,33 @@ const churnPredictionSnapshotSchema = new mongoose.Schema(
 
 const ChurnPredictionSnapshot =
   mongoose.models.ChurnPredictionSnapshot || mongoose.model("ChurnPredictionSnapshot", churnPredictionSnapshotSchema);
+
+const automaticRetentionLogSchema = new mongoose.Schema(
+  {
+    customerId: { type: String, required: true, index: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: false, index: true },
+    email: { type: String, required: true, index: true },
+    campaignType: { type: String, required: true, index: true },
+    triggerReason: { type: String, required: true },
+    churnProbability: { type: Number, required: true },
+    riskTier: { type: String, required: true },
+    decision: { type: String, enum: ["eligible", "sent", "skipped", "failed"], required: true, index: true },
+    skipReason: { type: String, default: null },
+    featureSnapshot: { type: mongoose.Schema.Types.Mixed, default: {} },
+    sentAt: { type: Date, default: null, index: true },
+    status: { type: String, enum: ["PENDING", "SENT", "SKIPPED", "FAILED", "DRY_RUN"], default: "PENDING", index: true },
+    providerMessageId: { type: String, default: null },
+    provider: { type: String, default: null },
+    mode: { type: String, default: null },
+    cooldownUntil: { type: Date, default: null, index: true },
+    error: { type: String, default: null },
+    metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { timestamps: true }
+);
+
+const AutomaticRetentionLog =
+  mongoose.models.AutomaticRetentionLog || mongoose.model("AutomaticRetentionLog", automaticRetentionLogSchema);
 
 const hashPassword = (password, salt = crypto.randomBytes(16).toString("hex")) => ({
   salt,
@@ -1946,6 +1983,120 @@ app.get("/api/churn/email-status", authenticate, requireAdmin, async (_req, res)
     return res.status(500).json({
       success: false,
       message: err.message || "Failed to check email service status.",
+    });
+  }
+});
+
+/**
+ * =====================================================================
+ * AUTOMATIC RETENTION MANAGEMENT API ENDPOINTS (Additive Feature)
+ * =====================================================================
+ */
+
+/**
+ * GET /api/churn/automatic-retention/status
+ * Returns current automatic retention configuration, scheduler status, and last run statistics.
+ */
+app.get("/api/churn/automatic-retention/status", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const config = getAutomaticRetentionConfig();
+    const recentLogsCount = await AutomaticRetentionLog.countDocuments();
+    const sentCount = await AutomaticRetentionLog.countDocuments({ status: "SENT" });
+    const dryRunCount = await AutomaticRetentionLog.countDocuments({ status: "DRY_RUN" });
+
+    return res.json({
+      success: true,
+      config,
+      metrics: {
+        totalLogs: recentLogsCount,
+        totalLiveSent: sentCount,
+        totalDryRunSent: dryRunCount,
+      },
+      disclaimer: "Automatic retention evaluates non-admin customers and executes targeted retention based on ML churn predictions and cooldown rules.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to retrieve automatic retention status.",
+    });
+  }
+});
+
+/**
+ * POST /api/churn/automatic-retention/trigger
+ * Triggers an on-demand evaluation (supports dry-run or live mode).
+ */
+app.post("/api/churn/automatic-retention/trigger", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { dryRun, isDryRun } = req.body || {};
+    const requestedDryRun = typeof dryRun === "boolean" ? dryRun : (typeof isDryRun === "boolean" ? isDryRun : null);
+
+    const result = await triggerOnDemandEvaluation({
+      isDryRun: requestedDryRun,
+      force: true,
+      triggeredBy: req.user?.email || "admin",
+    });
+
+    return res.json({
+      success: true,
+      message: result.dryRun ? "Automatic retention dry-run completed successfully (zero emails sent)." : "Automatic retention live evaluation completed successfully.",
+      result,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to execute on-demand automatic retention evaluation.",
+    });
+  }
+});
+
+/**
+ * GET /api/churn/automatic-retention/logs
+ * Returns historical audit logs for automatic retention decisions.
+ */
+app.get("/api/churn/automatic-retention/logs", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit || 50), 200);
+    const filter = {};
+    if (req.query.status) filter.status = String(req.query.status).trim().toUpperCase();
+    if (req.query.decision) filter.decision = String(req.query.decision).trim().toLowerCase();
+
+    const logs = await AutomaticRetentionLog.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return res.json({
+      success: true,
+      count: logs.length,
+      logs,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to retrieve automatic retention audit logs.",
+    });
+  }
+});
+
+/**
+ * PATCH /api/churn/automatic-retention/config
+ * Updates runtime configuration parameters (e.g. threshold, cooldown, dryRun mode, enabled).
+ */
+app.patch("/api/churn/automatic-retention/config", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const updates = req.body || {};
+    const updatedConfig = updateAutomaticRetentionConfig(updates);
+
+    return res.json({
+      success: true,
+      message: "Automatic retention configuration updated successfully.",
+      config: updatedConfig,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to update automatic retention configuration.",
     });
   }
 });
@@ -3917,6 +4068,16 @@ async function start() {
   console.log(`  - Active Dispatch Mode: ${emailStatus.mode.toUpperCase()} (${emailStatus.provider})`);
   await ensureProductsSeeded();
   await ensureAdmin();
+
+  // Initialize Automatic Retention Background Scheduler
+  initAutomaticRetentionScheduler({
+    User,
+    Activity,
+    Order,
+    AutomaticRetentionLog,
+    Campaign,
+  });
+
   app.listen(PORT, () => console.log(`LumaWear backend running at http://localhost:${PORT}`));
 }
 
@@ -3927,5 +4088,5 @@ if (process.env.NODE_ENV !== "test" && !process.execArgv.includes("--test") && !
   });
 }
 
-export { app, Product, Order, User, Activity, RefreshToken, Campaign, ChurnPredictionSnapshot };
+export { app, Product, Order, User, Activity, RefreshToken, Campaign, ChurnPredictionSnapshot, AutomaticRetentionLog };
 
