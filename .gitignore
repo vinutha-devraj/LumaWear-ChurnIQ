@@ -35,6 +35,8 @@ LumaWear-Ecommerce/backend/data/
 
 # ChurnIQ large generated model artifacts
 ChurnProject/artifacts/**/*.joblib
+!ChurnProject/artifacts/2b2147fd4057/churn_pipeline.joblib
+!ChurnProject/artifacts/2b2147fd4057/shap_explainer.joblib
 
 # Temporary/test-generated data
 ChurnProject/data/test_telecom.csv
