@@ -4066,8 +4066,10 @@ async function start() {
   console.log(`  - SMTP user: ${emailStatus.smtpUser}`);
   console.log(`  - SMTP password: ${emailStatus.smtpPassword}`);
   console.log(`  - Active Dispatch Mode: ${emailStatus.mode.toUpperCase()} (${emailStatus.provider})`);
-  await ensureProductsSeeded();
-  await ensureAdmin();
+  if (process.env.NODE_ENV !== "production") {
+    await ensureProductsSeeded();
+    await ensureAdmin();
+  }
 
   // Initialize Automatic Retention Background Scheduler
   initAutomaticRetentionScheduler({
